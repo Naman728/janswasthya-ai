@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+openenv
+pydantic
+pydantic-settings
+pydantic-core
+openenv-core[core]>=0.2.2
