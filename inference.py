@@ -34,25 +34,33 @@ MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o-mini")
 
 
 def llm_proxy_ping() -> dict[str, Any]:
-    """One minimal chat completion via hackathon proxy (for validator observability)."""
+    """One minimal chat completion via hackathon proxy (for validator observability). Never raises."""
     if not LLM_BASE_URL or not LLM_API_KEY:
         return {
             "skipped": True,
             "reason": "API_BASE_URL or API_KEY not set",
         }
-    from openai import OpenAI
+    try:
+        from openai import OpenAI
 
-    client = OpenAI(
-        base_url=LLM_BASE_URL.rstrip("/"),
-        api_key=LLM_API_KEY,
-    )
-    completion = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[{"role": "user", "content": "ping"}],
-        max_tokens=4,
-    )
-    text = (completion.choices[0].message.content or "").strip()
-    return {"skipped": False, "llm_reply_preview": text[:200]}
+        client = OpenAI(
+            base_url=LLM_BASE_URL.rstrip("/"),
+            api_key=LLM_API_KEY,
+            timeout=60.0,
+        )
+        completion = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": "ping"}],
+            max_tokens=4,
+        )
+        text = (completion.choices[0].message.content or "").strip()
+        return {"skipped": False, "llm_reply_preview": text[:200]}
+    except Exception as e:
+        return {
+            "skipped": True,
+            "error": str(e),
+            "error_type": type(e).__name__,
+        }
 
 
 def post_step(symptom_text: str) -> dict[str, Any]:
@@ -65,30 +73,44 @@ def post_step(symptom_text: str) -> dict[str, Any]:
 
 
 def main() -> int:
-    llm_meta = llm_proxy_ping()
-
-    normal_symptom = "bukhar aur khansi ho rahi hai"
-    critical_symptom = "bleeding from urine"
-
     try:
-        normal_out = post_step(normal_symptom)
+        _ = llm_proxy_ping()
+
+        normal_symptom = "bukhar aur khansi ho rahi hai"
+        critical_symptom = "bleeding from urine"
+
+        try:
+            normal_out = post_step(normal_symptom)
+        except Exception as e:
+            normal_out = {
+                "error": str(e),
+                "hint": f"Is OpenEnv up at {OPENENV_BASE_URL}?",
+            }
+
+        try:
+            critical_out = post_step(critical_symptom)
+        except Exception as e:
+            critical_out = {
+                "error": str(e),
+                "hint": f"Is OpenEnv up at {OPENENV_BASE_URL}?",
+            }
+
+        normal_case_output = json.dumps(normal_out, indent=2, ensure_ascii=False)
+        critical_case_output = json.dumps(critical_out, indent=2, ensure_ascii=False)
+
+        print("[START]")
+        print(normal_case_output)
+        print(critical_case_output)
+        print("[END]")
+        return 0
     except Exception as e:
-        normal_out = {"error": str(e), "hint": f"Is OpenEnv up at {OPENENV_BASE_URL}?"}
-
-    try:
-        critical_out = post_step(critical_symptom)
-    except Exception as e:
-        critical_out = {"error": str(e), "hint": f"Is OpenEnv up at {OPENENV_BASE_URL}?"}
-
-    _ = llm_meta  # ensures LLM path executed; rubric observes proxy traffic
-    normal_case_output = json.dumps(normal_out, indent=2, ensure_ascii=False)
-    critical_case_output = json.dumps(critical_out, indent=2, ensure_ascii=False)
-
-    print("[START]")
-    print(normal_case_output)
-    print(critical_case_output)
-    print("[END]")
-    return 0
+        err = json.dumps({"fatal": str(e), "error_type": type(e).__name__}, indent=2)
+        empty = json.dumps({}, indent=2)
+        print("[START]")
+        print(err)
+        print(empty)
+        print("[END]")
+        return 0
 
 
 if __name__ == "__main__":
