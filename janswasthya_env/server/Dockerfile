@@ -57,8 +57,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Final runtime stage
 FROM ${BASE_IMAGE}
 
-WORKDIR /app
-
 # Copy the virtual environment from builder
 COPY --from=builder /app/env/.venv /app/.venv
 
@@ -68,13 +66,15 @@ COPY --from=builder /app/env /app/env
 # Set PATH to use the virtual environment
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Set PYTHONPATH so imports work correctly
+# Set PYTHONPATH so imports work correctly (server.app = janswasthya_env/server/app.py)
 ENV PYTHONPATH="/app/env:$PYTHONPATH"
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+# App root for runtime (avoids shell cd in CMD)
+WORKDIR /app/env
 
-# Run the FastAPI server
-# The module path is constructed to work with the /app/env structure
-CMD ["sh", "-c", "cd /app/env && uvicorn server.app:app --host 0.0.0.0 --port 8000"]
+# Hugging Face Spaces proxies to port 7860; OpenEnv default 8000 does not work for Space UI
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:7860/health || exit 1
+
+# FastAPI app is server.app:app (not server.main)
+CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "7860"]
