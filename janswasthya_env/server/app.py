@@ -38,7 +38,8 @@ except Exception as e:  # pragma: no cover
 try:
     from ..models import JanswasthyaAction, JanswasthyaObservation
     from .janswasthya_env_environment import JanswasthyaEnvironment
-except ModuleNotFoundError:
+except (ImportError, ModuleNotFoundError):
+    # Flat layout (e.g. Docker/HF: PYTHONPATH=/app with server/ + models.py siblings)
     from models import JanswasthyaAction, JanswasthyaObservation
     from server.janswasthya_env_environment import JanswasthyaEnvironment
 

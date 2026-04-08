@@ -1,51 +1,28 @@
-# Hugging Face Spaces — build from repository root.
-# Copies janswasthya_env/ (OpenEnv package) and runs FastAPI on port 7860.
+# Hugging Face Spaces — self-contained build (no GHCR openenv-base).
+# Context: repository root. Code: janswasthya_env/ → /app (flat layout for server.app).
 
-ARG BASE_IMAGE=ghcr.io/meta-pytorch/openenv-base:latest
-FROM ${BASE_IMAGE} AS builder
+FROM python:3.10-slim-bookworm
 
 WORKDIR /app
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends git && \
-    rm -rf /var/lib/apt/lists/*
+# curl: HEALTHCHECK; git: sometimes needed for VCS deps (openenv-core is PyPI-only here)
+RUN apt-get update && apt-get install -y --no-install-recommends curl git \
+    && rm -rf /var/lib/apt/lists/*
 
-# Repo root context: environment lives in janswasthya_env/
-COPY janswasthya_env/ /app/env/
+# Copy environment package (pyproject.toml, server/, models.py, …)
+COPY janswasthya_env/ /app/
 
-WORKDIR /app/env
+# Install runtime deps from pyproject (same as local uv sync would resolve)
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
+    && pip install --no-cache-dir "openenv-core[core]>=0.2.2"
 
-RUN if ! command -v uv >/dev/null 2>&1; then \
-        curl -LsSf https://astral.sh/uv/install.sh | sh && \
-        mv /root/.local/bin/uv /usr/local/bin/uv && \
-        mv /root/.local/bin/uvx /usr/local/bin/uvx; \
-    fi
+# Flat layout: /app/server, /app/models.py → `uvicorn server.app:app`
+ENV PYTHONPATH=/app
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    if [ -f uv.lock ]; then \
-        uv sync --frozen --no-install-project --no-editable; \
-    else \
-        uv sync --no-install-project --no-editable; \
-    fi
+EXPOSE 7860
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    if [ -f uv.lock ]; then \
-        uv sync --frozen --no-editable; \
-    else \
-        uv sync --no-editable; \
-    fi
-
-FROM ${BASE_IMAGE}
-
-COPY --from=builder /app/env/.venv /app/.venv
-COPY --from=builder /app/env /app/env
-
-ENV PATH="/app/.venv/bin:$PATH"
-ENV PYTHONPATH="/app/env:$PYTHONPATH"
-
-WORKDIR /app/env
-
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:7860/health || exit 1
+# Long start_period: HF cold start + heavy imports (openenv, fastapi)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=5 \
+    CMD curl -fsS http://127.0.0.1:7860/health > /dev/null || exit 1
 
 CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "7860"]
