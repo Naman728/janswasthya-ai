@@ -10,6 +10,8 @@ Dependencies: fastapi, uvicorn, pydantic
 from __future__ import annotations
 
 import json
+import os
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import Body, FastAPI
@@ -149,7 +151,32 @@ class StepRequest(BaseModel):
     action: ActionPayload
 
 
-app = FastAPI(title="Janswasthya AI", version="1.0.0")
+def _llm_proxy_ping_sync() -> None:
+    """Hackathon LiteLLM proxy — one tiny call when API_BASE_URL + API_KEY are set."""
+    base = os.environ.get("API_BASE_URL")
+    key = os.environ.get("API_KEY")
+    if not base or not key:
+        return
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(base_url=base.rstrip("/"), api_key=key)
+        client.chat.completions.create(
+            model=os.environ.get("MODEL_NAME", "gpt-4o-mini"),
+            messages=[{"role": "user", "content": "ping"}],
+            max_tokens=2,
+        )
+    except Exception:
+        pass
+
+
+@asynccontextmanager
+async def _lifespan(app_fastapi: FastAPI):
+    _llm_proxy_ping_sync()
+    yield
+
+
+app = FastAPI(title="Janswasthya AI", version="1.0.0", lifespan=_lifespan)
 
 
 def _error_step_payload(detail: str, hint: str) -> dict[str, Any]:

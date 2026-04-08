@@ -73,12 +73,20 @@ uvicorn janswasthya_env.server.app:app --host 0.0.0.0 --port 8000
 
 Default port in `openenv.yaml` is **8000**. Interactive docs: `http://localhost:8000/docs`.
 
+## Hackathon: environment variables
+
+- **`OPENENV_BASE_URL`** — Base URL of **your** OpenEnv FastAPI app (`POST /step`, `POST /reset`). Local default: `http://127.0.0.1:8000`.
+- **`API_BASE_URL`** + **`API_KEY`** — Injected **LiteLLM / OpenAI-compatible proxy** (use with the official `openai` client only). Do not point these at your own `/step` server.
+- **`MODEL_NAME`** — Chat model id for the proxy (e.g. `gpt-4o-mini`).
+
+`inference.py` and root `app.py` perform a minimal proxy chat call when `API_BASE_URL` and `API_KEY` are set, so automated checks can observe traffic on the provided key.
+
 ## Hackathon demo script
 
-From the repo root (with the API running and optional `.env` for `API_BASE_URL`):
+From the repo root (OpenEnv running, optional `.env` from `.env.example`):
 
 ```bash
-pip install requests python-dotenv
+pip install -r requirements.txt
 python inference.py
 ```
 

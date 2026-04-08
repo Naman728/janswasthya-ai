@@ -7,3 +7,4 @@ pydantic-core
 openenv-core[core]>=0.2.2
 requests
 python-dotenv
+openai>=1.0.0
