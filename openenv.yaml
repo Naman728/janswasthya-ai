@@ -1,0 +1,7 @@
+spec_version: 1
+name: janswasthya_env
+type: space
+runtime: fastapi
+# Repo-root layout: package lives under janswasthya_env/
+app: janswasthya_env.server.app:app
+port: 7860
