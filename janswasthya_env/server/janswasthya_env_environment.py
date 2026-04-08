@@ -27,8 +27,10 @@ from openenv.core.env_server.types import State
 
 try:
     from ..models import JanswasthyaAction, JanswasthyaObservation
+    from .janswasthya_rubrics import JanswasthyaMultiTaskRubric
 except ImportError:
     from models import JanswasthyaAction, JanswasthyaObservation
+    from server.janswasthya_rubrics import JanswasthyaMultiTaskRubric
 
 
 class JanswasthyaEnvironment(Environment[JanswasthyaAction, JanswasthyaObservation, State]):
@@ -37,8 +39,15 @@ class JanswasthyaEnvironment(Environment[JanswasthyaAction, JanswasthyaObservati
     SUPPORTS_CONCURRENT_SESSIONS: bool = True
 
     def __init__(self) -> None:
-        super().__init__()
+        super().__init__(rubric=JanswasthyaMultiTaskRubric())
         self._state = State(episode_id=str(uuid4()), step_count=0)
+
+    def _finalize_observation(
+        self, action: JanswasthyaAction, obs: JanswasthyaObservation
+    ) -> JanswasthyaObservation:
+        """Set reward from registered rubrics (scores must stay strictly inside (0, 1))."""
+        obs.reward = self._apply_rubric(action, obs)
+        return self._apply_transform(obs)
 
     def normalize_text(self, text: str) -> str:
         text = text.lower()
@@ -166,7 +175,7 @@ class JanswasthyaEnvironment(Environment[JanswasthyaAction, JanswasthyaObservati
             echoed_message="Janswasthya environment ready.",
             message_length=0,
             done=False,
-            reward=0,
+            reward=0.5,
             info={},
         )
 
@@ -189,11 +198,11 @@ class JanswasthyaEnvironment(Environment[JanswasthyaAction, JanswasthyaObservati
             text = raw_message.strip()
 
             if not text:
-                return JanswasthyaObservation(
+                empty_obs = JanswasthyaObservation(
                     echoed_message="",
                     message_length=0,
                     done=False,
-                    reward=0,
+                    reward=0.5,
                     urgency="",
                     advice="",
                     confidence_label="",
@@ -201,6 +210,7 @@ class JanswasthyaEnvironment(Environment[JanswasthyaAction, JanswasthyaObservati
                     error_detail="Empty message: provide action.message",
                     info={"hint": 'Send {"action": {"message": "your symptom text"}}'},
                 )
+                return self._finalize_observation(action, empty_obs)
 
             self._state.step_count += 1
             result = self.predict(text)
@@ -217,21 +227,19 @@ class JanswasthyaEnvironment(Environment[JanswasthyaAction, JanswasthyaObservati
                 urgency=str(result.get("urgency", "")),
                 advice=str(result.get("advice", "")),
                 done=False,
-                reward=1,
+                reward=0.5,
                 status="success",
                 error_detail="",
                 info={},
             )
-            if self.rubric is not None:
-                obs.reward = self._apply_rubric(action, obs)
-            return self._apply_transform(obs)
+            return self._finalize_observation(action, obs)
 
         except Exception as e:
-            return JanswasthyaObservation(
+            err_obs = JanswasthyaObservation(
                 echoed_message=raw_message,
                 message_length=len(raw_message),
                 done=False,
-                reward=0,
+                reward=0.5,
                 urgency="",
                 advice="",
                 confidence_label="",
@@ -239,6 +247,7 @@ class JanswasthyaEnvironment(Environment[JanswasthyaAction, JanswasthyaObservati
                 error_detail=str(e),
                 info={"exception_type": type(e).__name__},
             )
+            return self._finalize_observation(action, err_obs)
 
     @property
     def state(self) -> State:
