@@ -3,7 +3,8 @@ title: Janswasthya Ai
 emoji: 📚
 colorFrom: pink
 colorTo: purple
-sdk: static
+sdk: docker
+app_port: 7860
 pinned: false
 ---
 
@@ -13,9 +14,9 @@ An [OpenEnv](https://github.com/meta-pytorch/OpenEnv)-compatible environment tha
 
 ## Hugging Face Space
 
-- YAML frontmatter at the top of this file configures how the Space card appears on the Hub. Full option list: [Spaces configuration reference](https://huggingface.co/docs/hub/spaces-config-reference).
-- **Live Space (add your link):** `https://huggingface.co/spaces/<your-username>/<your-space-name>`
-- For a **minimal FastAPI** app without the full OpenEnv stack, use root **`app.py`** and start with: `uvicorn app:app --host 0.0.0.0 --port 7860` (typical for Spaces).
+- **`sdk: docker`** + root **`Dockerfile`** build the OpenEnv FastAPI app; **`app_port: 7860`** matches the proxy. [Spaces configuration reference](https://huggingface.co/docs/hub/spaces-config-reference).
+- **Live Space (add your link):** `https://huggingface.co/spaces/<your-username>/<your-space-name>` — use the Space **API base URL** for hackathon checks (e.g. `POST /reset` must return JSON, not HTML).
+- Optional **standalone** API: root **`app.py`** with `uvicorn app:app --port 7860` (not used by the root Docker image; the image runs **`server.app:app`** inside `janswasthya_env/`).
 
 ### Screenshots
 
