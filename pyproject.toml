@@ -1,0 +1,30 @@
+# Root pyproject for OpenEnv / hackathon multi-mode validation (repo layout).
+# Package sources live under janswasthya_env/
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openenv-janswasthya_env"
+version = "0.1.0"
+description = "Janswasthya Env environment for OpenEnv"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "openenv-core[core]>=0.2.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+server = "janswasthya_env.server.app:main"
+
+[tool.setuptools]
+include-package-data = true
+packages = ["janswasthya_env", "janswasthya_env.server"]
+package-dir = { "janswasthya_env" = "janswasthya_env", "janswasthya_env.server" = "janswasthya_env/server" }
